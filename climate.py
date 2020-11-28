@@ -11,7 +11,7 @@ import voluptuous as vol
 from homeassistant.components.climate import ClimateDevice, PLATFORM_SCHEMA
 from homeassistant.components.climate.const import (
     DOMAIN, HVAC_MODE_HEAT, HVAC_MODE_COOL,
-    SUPPORT_TARGET_TEMPERATURE, SUPPORT_FAN_MODE)
+    SUPPORT_TARGET_TEMPERATURE, SUPPORT_PRESET_MODE, SUPPORT_FAN_MODE)
 from homeassistant.const import (
     ATTR_TEMPERATURE, CONF_HOST, CONF_NAME, CONF_TOKEN,
     STATE_ON, STATE_OFF, TEMP_CELSIUS)
@@ -24,10 +24,12 @@ from homeassistant.exceptions import PlatformNotReady
 _LOGGER = logging.getLogger(__name__)
 
 REQUIREMENTS = ['python-miio>=0.3.1']
-SUPPORT_FLAGS = (SUPPORT_TARGET_TEMPERATURE)
+SUPPORT_FLAGS = (
+    SUPPORT_TARGET_TEMPERATURE
+)
 SERVICE_SET_ROOM_TEMP = 'miheater_set_room_temperature'
 MIN_TEMP = 16
-MAX_TEMP = 32
+MAX_TEMP = 38
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
     vol.Required(CONF_HOST): cv.string,
     vol.Required(CONF_NAME): cv.string,
@@ -98,7 +100,7 @@ class MiHeater(ClimateDevice):
 
     @property
     def hvac_mode(self):
-        return HVAC_MODE_HEAT if self._state['power'][0] == 'on' else STATE_OFF
+        return HVAC_MODE_HEAT if self._state['power'][0] == 1 else STATE_OFF
 
     @property
     def hvac_modes(self):
@@ -131,9 +133,8 @@ class MiHeater(ClimateDevice):
         try:
             data = {}
             data['power'] = self._device.send('get_prop', ['power'])
-            data['humidity'] = self._device.send('get_prop', ['relative_humidity'])
-            data['target_temperature'] = self._device.send('get_prop', ['target_temperature'])
-            data['current_temperature'] = self._device.send('get_prop', ['temperature'])
+            data['target_temperature'] = self._device.send('get_prop', ['temps'])
+            data['current_temperature'] = self._device.send('get_prop', ['tempi'])
             self._state = data
         except DeviceException:
             _LOGGER.exception('Fail to get_prop from Xiaomi heater')
@@ -147,7 +148,7 @@ class MiHeater(ClimateDevice):
     @property
     def is_on(self):
         """Return true if heater is on."""
-        return self._state['power'][0] == 'on'
+        return self._state['power'][0] == 1
 
     @property
     def min_temp(self):
@@ -164,16 +165,16 @@ class MiHeater(ClimateDevice):
         temperature = kwargs.get(ATTR_TEMPERATURE)
         if temperature is None:
             return
-        self._device.send('set_target_temperature', [int(temperature)])
+        self._device.send('set_temps', [int(temperature)])
 
 
     async def async_turn_on(self):
         """Turn Mill unit on."""
-        self._device.send('set_power', ['on'])
+        self._device.send('set_power', [1])
 
     async def async_turn_off(self):
         """Turn Mill unit off."""
-        self._device.send('set_power', ['off'])
+        self._device.send('set_power', [0])
 
 
     async def async_update(self):
